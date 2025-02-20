@@ -1,7 +1,7 @@
 import argparse
 import os
 import time
-
+import matplotlib.pyplot as plt
 import losses
 from pytorch3d.utils import ico_sphere
 from r2n2_custom import R2N2
@@ -10,7 +10,12 @@ from pytorch3d.structures import Meshes
 import dataset_location
 import torch
 
+from pytorch3d.renderer import (
+    PointsRenderer, PointsRasterizationSettings, 
+    PointsRasterizer, AlphaCompositor, FoVOrthographicCameras
+)
 
+from pytorch3d.structures import Pointclouds
 
 
 
@@ -93,6 +98,10 @@ def fit_voxel(voxels_src, voxels_tgt, args):
         iter_start_time = time.time()
 
         loss = losses.voxel_loss(voxels_src,voxels_tgt)
+        
+        # for debug
+        if loss < 1e-3:
+            break
 
         optimizer.zero_grad()
         loss.backward()
@@ -129,6 +138,7 @@ def train_model(args):
 
         # fitting
         fit_voxel(voxels_src, voxels_tgt, args)
+        visualize_voxels(voxels_src, voxels_tgt)
 
 
     elif args.type == "point":
@@ -150,8 +160,32 @@ def train_model(args):
         fit_mesh(mesh_src, mesh_tgt, args)        
 
 
+def visualize_voxels(voxels_src, voxels_tgt):
+    # Move tensors to CPU and convert to numpy arrays
+    voxels_optimized = (voxels_src.detach().cpu().squeeze().numpy() > 0.5)  # Threshold at 0.5
+    voxels_gt = voxels_tgt.detach().cpu().squeeze().numpy().astype(bool)
     
+    # Create subplots
+    fig = plt.figure(figsize=(12, 6))
     
+    # Plot ground truth
+    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+    ax1.voxels(voxels_gt, edgecolor='k')
+    ax1.set_title('Ground Truth Voxel Grid')
+    ax1.set_xlabel('X')
+    ax1.set_ylabel('Y')
+    ax1.set_zlabel('Z')
+    
+    # Plot optimized
+    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    ax2.voxels(voxels_optimized, edgecolor='k')
+    ax2.set_title('Optimized Voxel Grid')
+    ax2.set_xlabel('X')
+    ax2.set_ylabel('Y')
+    ax2.set_zlabel('Z')
+    
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == '__main__':
